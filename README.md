@@ -142,6 +142,15 @@ npm install
 ### Environment
 
 Create `.env.local`:
+Use `.env.example` as a template only. Create your local environment file by
+copying it to `.env.local`, then replace the placeholder values with your real
+Supabase and Google AI credentials:
+
+```bash
+cp .env.example .env.local
+```
+
+Required variables:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
@@ -149,6 +158,9 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
 SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 GENAI_API_KEY="your-google-generative-ai-key"
 ```
+
+Do not put real secrets in `.env.example`; it is committed as documentation for
+other developers.
 
 Never expose `SUPABASE_SERVICE_ROLE_KEY` in browser code or any `NEXT_PUBLIC_*` variable.
 
@@ -186,34 +198,3 @@ For Vercel or another hosted environment, configure the same environment variabl
 ## Scripts
 
 | Command | Description |
-| --- | --- |
-| `npm run dev` | Starts the Next.js development server. |
-| `npm run build` | Builds the production application. |
-| `npm run start` | Starts the production server after building. |
-| `npm run lint` | Runs ESLint. |
-
-## Security Notes
-
-- Public table access is revoked from `anon` and `authenticated`; server APIs access data with the service role.
-- Realtime uses private broadcast channels, not public Postgres change feeds.
-- Chat APIs always filter by the current Supabase user id before reading or writing user-owned rows.
-- Attachments are served with short-lived signed URLs.
-- Anonymous usage is enforced atomically in Postgres to avoid concurrent request bypasses.
-- Markdown output escapes raw HTML and blocks unsafe link protocols.
-
-## Development Notes
-
-- Generated Supabase types live in `lib/database.types.ts`; regenerate them after schema changes.
-- Keep migrations ordered and additive. Do not edit already-applied migrations in shared environments.
-- The active Gemini model is currently set in `lib/ai/gemini.ts`.
-- Next.js 16 route params are asynchronous in this project (`params: Promise<...>`).
-- `middleware.ts` refreshes Supabase sessions and redirects unauthenticated page requests to `/login`.
-
-## Roadmap Ideas
-
-- Streaming assistant responses
-- Regenerate and edit-message flows
-- Account upgrade flow for anonymous users
-- Model selection through environment or database configuration
-- Background document extraction for larger files
-- Automated tests for API routes and database authorization behavior
