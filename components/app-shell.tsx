@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation"
 
-import { ChatSidebar, type AppUser, type Chat } from "@/components/chat-sidebar"
+import { ChatSidebar } from "@/components/chat-sidebar"
 import {
   ChatNavigationProvider,
   useChatNavigation,
@@ -13,6 +13,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+import type { AppUser, Chat } from "@/lib/ui/sidebar-data"
 
 interface AppShellProps {
   children: React.ReactNode

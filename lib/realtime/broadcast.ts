@@ -24,13 +24,14 @@ async function broadcastToUserChannel(
     config: { private: true },
   })
 
-  await channel.subscribe()
-  await channel.send({
-    type: "broadcast",
-    event: message.event,
-    payload: message.payload,
-  })
-  await admin.removeChannel(channel)
+  try {
+    const result = await channel.httpSend(message.event, message.payload)
+    if (!result.success) {
+      throw new Error(result.error)
+    }
+  } finally {
+    await admin.removeChannel(channel)
+  }
 }
 
 export async function broadcastChatCreated(userId: string, chat: ChatRow) {

@@ -189,13 +189,14 @@ revoke all on function public.increment_question_count_for_user(boolean, uuid)
 grant execute on function public.increment_question_count_for_user(boolean, uuid)
   to service_role;
 
--- Public schema access is blocked for browser clients. The API uses the service
--- role and Realtime uses private broadcast channel authorization below.
-alter table public.profiles disable row level security;
-alter table public.user_usage disable row level security;
-alter table public.chats disable row level security;
-alter table public.messages disable row level security;
-alter table public.message_attachments disable row level security;
+-- Public schema access is blocked for browser clients. RLS stays enabled as a
+-- defense-in-depth layer if table grants change later; the API uses the
+-- service role and Realtime uses private broadcast channel authorization below.
+alter table public.profiles enable row level security;
+alter table public.user_usage enable row level security;
+alter table public.chats enable row level security;
+alter table public.messages enable row level security;
+alter table public.message_attachments enable row level security;
 
 revoke all on table public.profiles from anon, authenticated;
 revoke all on table public.user_usage from anon, authenticated;

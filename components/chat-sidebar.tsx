@@ -7,6 +7,7 @@ import { LogIn, LogOut, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { useChatNavigation } from "@/components/chat-navigation-context";
 import { useRealtimeChats } from "@/hooks/use-realtime-chats";
 import type { RealtimeChatEvent } from "@/lib/realtime/broadcast";
+import type { AppUser, Chat } from "@/lib/ui/sidebar-data";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,20 +31,6 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-
-export type Chat = {
-  id: string;
-  title: string;
-  timestamp: string;
-};
-
-export type AppUser = {
-  id: string;
-  name: string;
-  email: string;
-  avatarUrl?: string;
-  isAnonymous?: boolean;
-} | null;
 
 function getInitials(name: string) {
   return name
