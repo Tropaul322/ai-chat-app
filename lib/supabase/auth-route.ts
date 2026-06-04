@@ -51,5 +51,13 @@ export async function createAuthRouteClient() {
     return response
   }
 
-  return { supabase, jsonWithSession }
+  function redirectWithSession(url: URL | string) {
+    const response = NextResponse.redirect(url)
+    for (const { name, value, options } of pendingCookies) {
+      response.cookies.set(name, value, options)
+    }
+    return response
+  }
+
+  return { supabase, jsonWithSession, redirectWithSession }
 }

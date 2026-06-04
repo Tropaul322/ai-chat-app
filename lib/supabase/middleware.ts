@@ -56,7 +56,8 @@ export async function updateSession(request: NextRequest) {
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
+    url.pathname = '/api/auth/anonymous'
+    url.searchParams.set('next', `${pathname}${request.nextUrl.search}`)
     return redirectWithSession(url)
   }
 
