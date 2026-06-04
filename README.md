@@ -1,36 +1,219 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Chat App
+
+A full-stack AI chat application built with Next.js, Supabase, and Google Gemini. Users can start as a guest, send text or file-backed prompts, receive markdown-formatted AI replies, and keep a realtime chat history synced through Supabase private broadcasts.
+
+## Stack
+
+- **Framework:** Next.js 16 App Router, React 19, TypeScript
+- **UI:** Tailwind CSS 4, shadcn/ui-style components, Radix UI, lucide-react
+- **Auth and data:** Supabase Auth, Postgres, Storage, Realtime
+- **AI:** Google Generative AI SDK with `gemini-3.1-flash-lite`
+- **Content:** `marked` for safe markdown rendering
+- **Tooling:** ESLint, TypeScript, npm
+
+## Features
+
+- Email/password signup and login
+- Anonymous guest sessions with a 3-question free limit
+- Persistent chat history scoped to each authenticated user
+- Create, delete, and open chats
+- Text, image, and document attachments in chat prompts
+- Inline Gemini multimodal requests using uploaded attachments as context
+- Markdown rendering for assistant replies with URL safety guards
+- Private Supabase Realtime broadcasts for chat and message updates
+- Signed attachment URLs for secure display and download
+- Server-only database writes through a Supabase service-role client
+
+## Architecture
+
+```text
+app/
+  page.tsx                         Dashboard and first-message composer
+  chat/[chatId]/page.tsx           Chat detail page
+  api/
+    auth/*                         Login, signup, logout, anonymous session APIs
+    chats/route.ts                 List and create chats
+    chats/[chatId]/route.ts        Read, rename, and delete one chat
+    chats/[chatId]/messages/route.ts
+                                    Send a message to an existing chat
+
+components/
+  app-shell.tsx                    Shared shell with sidebar layout
+  chat-composer.tsx                Message input and attachment picker
+  chat-view.tsx                    Optimistic messages, markdown, attachments
+  chat-sidebar.tsx                 Chat navigation and account controls
+
+lib/
+  ai/                              Gemini client and reply orchestration
+  api/                             Request parsing and response helpers
+  auth/                            Server session helpers
+  db/                              Chat/message/storage persistence
+  realtime/                        Supabase broadcast helpers
+  supabase/                        Server, middleware, admin, realtime clients
+
+supabase/migrations/               Database schema and RPC changes
+```
+
+### Request Flow
+
+1. The UI sends chat requests to Next.js API routes.
+2. API routes read the user session from Supabase Auth cookies.
+3. Database and Storage writes happen on the server with `SUPABASE_SERVICE_ROLE_KEY`.
+4. Anonymous users are rate-limited by the `increment_question_count_for_user` Postgres RPC.
+5. Attachments are uploaded to the `chat-attachments` Supabase Storage bucket and saved in `message_attachments`.
+6. The user message, prior history, and attachments are sent to Gemini.
+7. User and assistant messages are persisted, then broadcast on the private `user:{userId}` Realtime channel.
+8. Clients update the sidebar and active chat from API responses plus realtime events.
+
+## Data Model
+
+Current migrations produce the main public tables below:
+
+- `profiles` - user profile data tied to `auth.users`
+- `user_usage` - question counts and free-tier limits
+- `chats` - chat conversations owned by users
+- `messages` - ordered chat messages with `user`, `assistant`, or `system` role
+- `message_attachments` - uploaded file metadata linked to messages
+
+The project originally included model registry and RAG tables, but later migrations remove them. The active model is configured in code and documents are used as direct prompt attachments rather than embedded vector search context.
+
+## API
+
+All chat routes require an active Supabase session. The homepage can create an anonymous session automatically if the first chat request receives `401`.
+
+### Auth
+
+| Method | Route | Description |
+| --- | --- | --- |
+| `POST` | `/api/auth/anonymous` | Creates an anonymous Supabase session. |
+| `POST` | `/api/auth/signup` | Creates an email/password account. Body: `{ email, password, name? }`. |
+| `POST` | `/api/auth/login` | Signs in with email/password. Body: `{ email, password }`. |
+| `POST` | `/api/auth/logout` | Signs out and clears session cookies. |
+
+### Chats
+
+| Method | Route | Description |
+| --- | --- | --- |
+| `GET` | `/api/chats` | Lists the current user's chats. |
+| `POST` | `/api/chats` | Creates a chat. Accepts JSON or `multipart/form-data`; may also send the first message. |
+| `GET` | `/api/chats/:chatId` | Returns one chat and its messages. |
+| `PATCH` | `/api/chats/:chatId` | Renames a chat. Body: `{ title }`. |
+| `DELETE` | `/api/chats/:chatId` | Deletes a chat and its stored attachments. |
+| `POST` | `/api/chats/:chatId/messages` | Sends a message and receives the assistant reply. |
+
+### Message Payloads
+
+JSON requests:
+
+```json
+{
+  "content": "Explain this concept simply"
+}
+```
+
+Multipart requests:
+
+- `content` or `message` - optional text
+- `files` - zero or more attachments
+
+Attachment limits:
+
+- Up to 5 files per message
+- 10 MB per file
+- 20 MB total per message
+- Supported by default: PNG, JPEG, GIF, WebP, PDF, JSON, CSV, Markdown, plain text, and non-HTML `text/*`
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 20+
+- npm
+- A Supabase project
+- A Google AI Studio API key
+- Supabase CLI if you want to run migrations locally
+
+### Install
+
+```bash
+npm install
+```
+
+### Environment
+
+Create `.env.local`:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+GENAI_API_KEY="your-google-generative-ai-key"
+```
+
+Never expose `SUPABASE_SERVICE_ROLE_KEY` in browser code or any `NEXT_PUBLIC_*` variable.
+
+### Database and Storage
+
+Apply the SQL files in `supabase/migrations/` to your Supabase database in order.
+
+If you use the Supabase CLI, the usual workflow is:
+
+```bash
+supabase login
+supabase link --project-ref your-project-ref
+supabase db push
+```
+
+The app expects a private Supabase Storage bucket named `chat-attachments`. The migrations update that bucket's file limits and MIME types, so create the bucket before applying migrations if it does not exist yet.
+
+### Run the App
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Production
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm run start
+```
 
-## Learn More
+For Vercel or another hosted environment, configure the same environment variables and make sure the Supabase project has the migrations applied.
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Starts the Next.js development server. |
+| `npm run build` | Builds the production application. |
+| `npm run start` | Starts the production server after building. |
+| `npm run lint` | Runs ESLint. |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Security Notes
 
-## Deploy on Vercel
+- Public table access is revoked from `anon` and `authenticated`; server APIs access data with the service role.
+- Realtime uses private broadcast channels, not public Postgres change feeds.
+- Chat APIs always filter by the current Supabase user id before reading or writing user-owned rows.
+- Attachments are served with short-lived signed URLs.
+- Anonymous usage is enforced atomically in Postgres to avoid concurrent request bypasses.
+- Markdown output escapes raw HTML and blocks unsafe link protocols.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Development Notes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Generated Supabase types live in `lib/database.types.ts`; regenerate them after schema changes.
+- Keep migrations ordered and additive. Do not edit already-applied migrations in shared environments.
+- The active Gemini model is currently set in `lib/ai/gemini.ts`.
+- Next.js 16 route params are asynchronous in this project (`params: Promise<...>`).
+- `middleware.ts` refreshes Supabase sessions and redirects unauthenticated page requests to `/login`.
+
+## Roadmap Ideas
+
+- Streaming assistant responses
+- Regenerate and edit-message flows
+- Account upgrade flow for anonymous users
+- Model selection through environment or database configuration
+- Background document extraction for larger files
+- Automated tests for API routes and database authorization behavior
