@@ -6,8 +6,10 @@ import { jsonError, jsonUnauthorized } from "@/lib/api/response"
 import { getSessionUser } from "@/lib/auth/session"
 import {
   createChatForUser,
+  deleteChatForUser,
   listChatsForUser,
 } from "@/lib/db/chats"
+import { isFreeQuestionLimitExceededError } from "@/lib/errors"
 
 export async function GET() {
   const user = await getSessionUser()
@@ -31,9 +33,12 @@ export async function POST(request: Request) {
     return jsonUnauthorized()
   }
 
+  let createdChatId: string | null = null
+
   try {
     const { attachments, content } = await parseChatRequest(request)
     const chat = await createChatForUser(user.id, content || "New chat")
+    createdChatId = chat.id
 
     if (!content && attachments.length === 0) {
       return NextResponse.json({ chat }, { status: 201 })
@@ -57,6 +62,18 @@ export async function POST(request: Request) {
       { status: 201 }
     )
   } catch (error) {
+    if (isFreeQuestionLimitExceededError(error)) {
+      if (createdChatId) {
+        try {
+          await deleteChatForUser(createdChatId, user.id)
+        } catch {
+          // Keep the limit response visible even if best-effort cleanup fails.
+        }
+      }
+
+      return jsonError(error.message, 429)
+    }
+
     const message =
       error instanceof Error ? error.message : "Failed to create chat"
     return jsonError(message, 500)

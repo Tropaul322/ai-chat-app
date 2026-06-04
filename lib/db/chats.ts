@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
+import { FreeQuestionLimitExceededError } from "@/lib/errors"
 import type {
   ChatRow,
   MessageAttachmentView,
@@ -353,6 +354,14 @@ export async function incrementQuestionCount(userId: string, isAnonymous: boolea
     .single()
 
   if (error) {
+    if (error.message.includes("Free question limit reached")) {
+      const limit = error.message.match(/\((\d+)\)/)?.[1]
+
+      throw new FreeQuestionLimitExceededError(
+        limit ? Number(limit) : undefined
+      )
+    }
+
     throw error
   }
 

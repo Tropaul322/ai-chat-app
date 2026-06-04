@@ -4,6 +4,7 @@ import { sendMessageAndGetReply } from "@/lib/ai/send-message"
 import { parseChatRequest } from "@/lib/api/chat-request"
 import { jsonError, jsonUnauthorized } from "@/lib/api/response"
 import { getSessionUser } from "@/lib/auth/session"
+import { isFreeQuestionLimitExceededError } from "@/lib/errors"
 
 type RouteContext = {
   params: Promise<{ chatId: string }>
@@ -42,6 +43,10 @@ export async function POST(request: Request, context: RouteContext) {
       { status: 201 }
     )
   } catch (error) {
+    if (isFreeQuestionLimitExceededError(error)) {
+      return jsonError(error.message, 429)
+    }
+
     const message =
       error instanceof Error ? error.message : "Failed to send message"
     return jsonError(message, 500)
