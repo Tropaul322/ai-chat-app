@@ -2,6 +2,7 @@
 
 import { marked } from "marked";
 import { FileText } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useChatNavigation } from "@/components/chat-navigation-context";
@@ -15,11 +16,17 @@ import type { MessageWithAttachments } from "@/lib/database.types";
 import type { RealtimeChatEvent } from "@/lib/realtime/broadcast";
 import { cn } from "@/lib/utils";
 
-interface ChatViewProps {
-  chatId: string;
-  initialMessages: MessageWithAttachments[];
-  userId: string;
-}
+type ChatViewProps =
+  | {
+      chatId: string;
+      initialMessages: MessageWithAttachments[];
+      userId: string;
+    }
+  | {
+      chatId?: undefined;
+      initialMessages?: MessageWithAttachments[];
+      userId?: string;
+    };
 
 function createOptimisticUserMessage(
   chatId: string,
@@ -190,6 +197,21 @@ function MessageBubble({ message }: { message: MessageWithAttachments }) {
   );
 }
 
+function ThinkingIndicator() {
+  return (
+    <div className="flex justify-start">
+      <div className="flex items-center gap-2 rounded-2xl bg-muted px-4 py-2.5 text-sm text-muted-foreground animate-in fade-in-0 slide-in-from-bottom-2">
+        <span>Thinking</span>
+        <span className="flex items-center gap-1" aria-hidden="true">
+          <span className="chat-thinking-dot size-1 rounded-full bg-current opacity-70" />
+          <span className="chat-thinking-dot size-1 rounded-full bg-current opacity-70 [animation-delay:150ms]" />
+          <span className="chat-thinking-dot size-1 rounded-full bg-current opacity-70 [animation-delay:300ms]" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function createMessageFormData(
   content: string,
   attachments: ComposerAttachment[],
@@ -204,21 +226,63 @@ function createMessageFormData(
   return formData;
 }
 
-export function ChatView({ chatId, initialMessages, userId }: ChatViewProps) {
+function createChatFormData(content: string, attachments: ComposerAttachment[]) {
+  const formData = new FormData();
+  formData.set("message", content);
+
+  for (const attachment of attachments) {
+    formData.append("files", attachment.file);
+  }
+
+  return formData;
+}
+
+async function startAnonymousSession() {
+  const response = await fetch("/api/auth/anonymous", { method: "POST" });
+
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    throw new Error(data.error ?? "Failed to start anonymous session");
+  }
+}
+
+async function createChat(
+  content: string,
+  attachments: ComposerAttachment[],
+) {
+  return fetch("/api/chats", {
+    method: "POST",
+    body: createChatFormData(content, attachments),
+  });
+}
+
+export function ChatView({
+  chatId,
+  initialMessages = [],
+  userId,
+}: ChatViewProps) {
+  const router = useRouter();
   const { leaveDeletedChat } = useChatNavigation();
   const [messages, setMessages] = useState(initialMessages);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const isEmptyState = messages.length === 0 && !isSending;
 
   useEffect(() => {
+    if (messages.length === 0) {
+      return;
+    }
+
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isSending]);
 
   const handleRealtimeEvent = useCallback(
     (event: RealtimeChatEvent) => {
       if (event.event === "chat_deleted") {
-        if (event.payload.id === chatId) {
+        if (chatId && event.payload.id === chatId) {
           leaveDeletedChat();
         }
         return;
@@ -228,7 +292,7 @@ export function ChatView({ chatId, initialMessages, userId }: ChatViewProps) {
         return;
       }
 
-      if (event.payload.chat_id !== chatId) {
+      if (!chatId || event.payload.chat_id !== chatId) {
         return;
       }
 
@@ -273,13 +337,51 @@ export function ChatView({ chatId, initialMessages, userId }: ChatViewProps) {
 
   const handleSend = useCallback(
     async (content: string, attachments: ComposerAttachment[]) => {
-      const optimisticMessage = createOptimisticUserMessage(chatId, content);
+      const optimisticMessage = createOptimisticUserMessage(
+        chatId ?? `pending-chat-${crypto.randomUUID()}`,
+        content,
+      );
 
       setMessages((current) => [...current, optimisticMessage]);
       setIsSending(true);
       setError(null);
 
       try {
+        if (!chatId) {
+          let response = await createChat(content, attachments);
+
+          if (response.status === 401) {
+            await startAnonymousSession();
+            response = await createChat(content, attachments);
+          }
+
+          const data = (await response.json()) as {
+            chat?: { id: string };
+            userMessage?: MessageWithAttachments;
+            assistantMessage?: MessageWithAttachments;
+            error?: string;
+          };
+
+          if (!response.ok || !data.chat) {
+            throw new Error(data.error ?? "Failed to create chat");
+          }
+
+          if (data.userMessage && data.assistantMessage) {
+            setMessages((current) =>
+              mergeServerMessages(
+                current,
+                optimisticMessage.id,
+                data.userMessage!,
+                data.assistantMessage!,
+              ),
+            );
+          }
+
+          router.push(`/chat/${data.chat.id}`);
+          router.refresh();
+          return;
+        }
+
         const response = await fetch(`/api/chats/${chatId}/messages`, {
           method: "POST",
           body: createMessageFormData(content, attachments),
@@ -318,8 +420,36 @@ export function ChatView({ chatId, initialMessages, userId }: ChatViewProps) {
         setIsSending(false);
       }
     },
-    [chatId],
+    [chatId, router],
   );
+
+  if (isEmptyState) {
+    return (
+      <div className="flex h-full min-h-0 items-center justify-center p-4">
+        <div className="flex w-full max-w-2xl flex-col items-center gap-6">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <h2 className="font-heading text-xl font-semibold text-foreground">
+              What can I help you with?
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Select a chat from the sidebar or start a new one.
+            </p>
+          </div>
+          <div className="w-full">
+            {error ? (
+              <p
+                className="mb-2 text-center text-sm text-destructive"
+                role="alert"
+              >
+                {error}
+              </p>
+            ) : null}
+            <ChatComposer disabled={isSending} onSend={handleSend} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -334,13 +464,7 @@ export function ChatView({ chatId, initialMessages, userId }: ChatViewProps) {
               <MessageBubble key={message.id} message={message} />
             ))
           ) : null}
-          {isSending ? (
-            <div className="flex justify-start">
-              <div className="rounded-2xl bg-muted px-4 py-2.5 text-sm text-muted-foreground">
-                Thinking…
-              </div>
-            </div>
-          ) : null}
+          {isSending ? <ThinkingIndicator /> : null}
           <div ref={bottomRef} />
         </div>
       </ScrollArea>

@@ -1,13 +1,7 @@
 "use client"
 
-import { usePathname } from "next/navigation"
-
 import { ChatSidebar } from "@/components/chat-sidebar"
-import {
-  ChatNavigationProvider,
-  useChatNavigation,
-} from "@/components/chat-navigation-context"
-import { DashboardPanel } from "@/components/dashboard-panel"
+import { ChatNavigationProvider } from "@/components/chat-navigation-context"
 import {
   SidebarInset,
   SidebarProvider,
@@ -29,10 +23,6 @@ function AppShellMain({
   children: React.ReactNode
   title?: string
 }) {
-  const pathname = usePathname()
-  const { showDashboard } = useChatNavigation()
-  const onChatRoute = pathname?.startsWith("/chat/")
-
   return (
     <SidebarInset>
       <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
@@ -43,9 +33,7 @@ function AppShellMain({
           </h1>
         ) : null}
       </header>
-      <div className="flex flex-1 flex-col overflow-auto">
-        {showDashboard && onChatRoute ? <DashboardPanel /> : children}
-      </div>
+      <div className="flex flex-1 flex-col overflow-auto">{children}</div>
     </SidebarInset>
   )
 }

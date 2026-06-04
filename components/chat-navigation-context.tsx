@@ -5,12 +5,10 @@ import {
   useCallback,
   useContext,
   useMemo,
-  useState,
 } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
 type ChatNavigationContextValue = {
-  showDashboard: boolean
   leaveDeletedChat: () => void
 }
 
@@ -24,27 +22,20 @@ export function ChatNavigationProvider({
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [showDashboardOnChatRoute, setShowDashboardOnChatRoute] =
-    useState(false)
-  const showDashboard = pathname?.startsWith("/chat/")
-    ? showDashboardOnChatRoute
-    : false
 
   const leaveDeletedChat = useCallback(() => {
     if (!pathname?.startsWith("/chat/")) {
       return
     }
 
-    setShowDashboardOnChatRoute(true)
     router.replace("/")
   }, [pathname, router])
 
   const value = useMemo(
     () => ({
-      showDashboard,
       leaveDeletedChat,
     }),
-    [showDashboard, leaveDeletedChat]
+    [leaveDeletedChat]
   )
 
   return (

@@ -2,6 +2,10 @@
 
 A full-stack AI chat application built with Next.js, Supabase, and Google Gemini. Users can start as a guest, send text or file-backed prompts, receive markdown-formatted AI replies, and keep a realtime chat history synced through Supabase private broadcasts.
 
+## Live Demo
+
+Try the hosted app on Vercel: [https://ai-chat-app-ochre-omega.vercel.app/](https://ai-chat-app-ochre-omega.vercel.app/)
+
 ## Stack
 
 - **Framework:** Next.js 16 App Router, React 19, TypeScript
@@ -75,7 +79,7 @@ Current migrations produce the main public tables below:
 - `messages` - ordered chat messages with `user`, `assistant`, or `system` role
 - `message_attachments` - uploaded file metadata linked to messages
 
-The project originally included model registry and RAG tables, but later migrations remove them. The active model is configured in code and documents are used as direct prompt attachments rather than embedded vector search context.
+The active model is configured in code. Uploaded documents are used as direct prompt attachments rather than embedded vector search context.
 
 ## API
 
@@ -176,7 +180,7 @@ supabase link --project-ref your-project-ref
 supabase db push
 ```
 
-The app expects a private Supabase Storage bucket named `chat-attachments`. The migrations update that bucket's file limits and MIME types, so create the bucket before applying migrations if it does not exist yet.
+The migration provisions a private Supabase Storage bucket named `chat-attachments` and sets its file size and MIME type limits. If the bucket already exists, the migration updates those settings.
 
 ### Run the App
 
@@ -194,7 +198,3 @@ npm run start
 ```
 
 For Vercel or another hosted environment, configure the same environment variables and make sure the Supabase project has the migrations applied.
-
-## Scripts
-
-| Command | Description |

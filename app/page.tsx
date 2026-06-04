@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/app-shell"
-import { DashboardPanel } from "@/components/dashboard-panel"
+import { ChatView } from "@/components/chat-view"
 import { fetchApiFromServer } from "@/lib/api/server"
 import { getSessionUser } from "@/lib/auth/session"
 import { toAppUser, toSidebarChats } from "@/lib/ui/sidebar-data"
@@ -19,7 +19,7 @@ export default async function Home() {
 
   return (
     <AppShell chats={chats} user={user ? toAppUser(user) : null}>
-      <DashboardPanel />
+      <ChatView />
     </AppShell>
   )
 }
